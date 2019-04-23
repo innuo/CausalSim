@@ -3,7 +3,7 @@ from torchvision import transforms
 import pandas as pd
 import numpy as np
 import re
-
+import copy
 
 class MyMixedDataSet(Dataset):
 
@@ -28,7 +28,9 @@ class RawData():
     def __init__(self, csv_path, infer_categoricals=True, categorical_cols=None):
         """categorical_cols: list of categorical column _names_ """
 
-        self.df = pd.read_csv(csv_path)
+        self.raw_df = pd.read_csv(csv_path)
+        self.df = copy.deepcopy(self.raw_df)
+        self.variables = list(self.df.columns)
         self.col_info = dict(zip(list(self.df), [["Numeric", None]] * self.df.shape[1]))
 
         if not infer_categoricals:
