@@ -15,7 +15,7 @@ class CausalStructure:
     # TODO: improve structure learning
     def learn_structure(self, dataset):
         gs = cdt.causality.graph.bnlearn.GS()
-        dataset_dag = gs.create_graph_from_data(dataset.raw_df)
+        dataset_dag = gs.create_graph_from_data(dataset.df)
         self.update_structure(dataset_dag, 'replace', 'self')
 
     def update_structure(self, dag, merge_type='replace', priority='self'):
@@ -56,7 +56,7 @@ if __name__ == '__main__':
     #nx.draw_networkx(k)
 
     from datahandler import dataset as ds
-    r = ds.RawData("~/work/tinkering/data/5d.csv")
+    r = ds.DataUtils("~/work/tinkering/data/5d.csv")
     cs = CausalStructure(r.variables)
     cs.learn_structure(r)
     cs.plot()

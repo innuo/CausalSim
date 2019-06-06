@@ -28,7 +28,7 @@ class DataUtils():
     def __init__(self, data_frame_list, infer_categoricals=True, categorical_cols=None):
         """categorical_cols: list of categorical column _names_ """
 
-        self.df = pd.concat([df,df1], axis=0, ignore_index=True)
+        self.df = pd.concat(data_frame_list, axis=0, ignore_index=True)
         self.variables = list(self.df.columns)
         self.col_info = dict(zip(list(self.df), [["Numeric", None]] * self.df.shape[1]))
 
@@ -65,5 +65,3 @@ if __name__ == '__main__':
     print(pd.get_dummies(r.df.iloc[0]))
     print(">>>>>>>>>>>")
     print(pd.get_dummies(r.df).iloc[0])
-    print(">>>>>>>>>>>")
-    print(r.df_one_hot.dtypes)

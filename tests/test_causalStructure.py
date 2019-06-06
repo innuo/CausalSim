@@ -1,5 +1,6 @@
 from unittest import TestCase, main
 import os
+import pandas as pd
 from structure import CausalStructure
 from datahandler import DataUtils
 
@@ -7,7 +8,8 @@ THIS_DIR = os.path.dirname(os.path.abspath(__file__))
 
 class TestCausalStructure(TestCase):
     def test_learn_structure(self):
-        r = DataUtils(os.path.join(THIS_DIR, '../data/5d.csv'))
+        df = pd.read_csv(os.path.join(THIS_DIR, '../data/5d.csv'))
+        r = DataUtils([df])
         cs = CausalStructure(r.variables)
         cs.learn_structure(r)
         self.assertTrue(cs.dag.has_edge("Price", "VolumeBought"))
