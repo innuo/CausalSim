@@ -1,13 +1,13 @@
 from unittest import TestCase, main
 import os
 from structure import CausalStructure
-from datahandler import RawData
+from datahandler import DataUtils
 
 THIS_DIR = os.path.dirname(os.path.abspath(__file__))
 
 class TestCausalStructure(TestCase):
     def test_learn_structure(self):
-        r = RawData(os.path.join(THIS_DIR, '../data/5d.csv'))
+        r = DataUtils(os.path.join(THIS_DIR, '../data/5d.csv'))
         cs = CausalStructure(r.variables)
         cs.learn_structure(r)
         self.assertTrue(cs.dag.has_edge("Price", "VolumeBought"))
