@@ -3,11 +3,12 @@ import networkx as nx
 
 
 
+
 class CausalStructure:
-    def __init__(self, variables, dag=None):
-        self.variables = variables
-        self.dag = nx.empty_graph(len(variables), create_using=nx.DiGraph())
-        self.dag = nx.relabel_nodes(self.dag, dict(zip(range(len(variables)), variables)))
+    def __init__(self, variable_names, dag=None):
+        self.variable_names = variable_names
+        self.dag = nx.empty_graph(len(variable_names), create_using=nx.DiGraph())
+        self.dag = nx.relabel_nodes(self.dag, dict(zip(range(len(variable_names)), variable_names)))
 
         if dag is not None:
             self.dag = nx.compose(dag, self.dag)
@@ -21,7 +22,7 @@ class CausalStructure:
     def update_structure(self, dag, merge_type='replace', priority='self'):
         self.merge(dag, merge_type, priority)
         self.topo_sorted = list(nx.topological_sort(self.dag))
-        self.parents = dict(zip(self.variables, [[]] * len(self.variables)))
+        self.parents = dict(zip(self.variable_names, [[]] * len(self.variable_names)))
         for v in self.topo_sorted:
             self.parents[v] = list(nx.DiGraph.predecessors(self.dag, v))
 
@@ -57,6 +58,6 @@ if __name__ == '__main__':
 
     from datahandler import dataset as ds
     r = ds.DataUtils("~/work/tinkering/data/5d.csv")
-    cs = CausalStructure(r.variables)
+    cs = CausalStructure(r.variable_names)
     cs.learn_structure(r)
     cs.plot()
