@@ -38,10 +38,11 @@ class DataSet():
             self.categorical_cols = self.__sniff_categorical()
         
         self.variable_dict = dict()
-        for v in self.variable_names:
+        for i, v in enumerate(self.variable_names):
             self.variable_dict[v] = dict()
+            self.variable_dict['id'] = i
             if v in self.categorical_cols:
-                self.variable_dict[v]['type'] = "Categorical"
+                self.variable_dict[v]['type'] = "categorical"
                 le = preprocessing.LabelEncoder()
                 inds = self.df[v].isnull() == False
                 le.fit(self.df[v][inds])
@@ -49,7 +50,7 @@ class DataSet():
                 self.variable_dict[v]['transform'] = le.transform
                 self.variable_dict[v]['inverse_transform'] = le.inverse_transform
             else:
-                self.variable_dict[v]['type'] = "Numeric"
+                self.variable_dict[v]['type'] = "numeric"
                 self.variable_dict[v]['dim'] = 1
                 scaler = preprocessing.StandardScaler()
                 scaler.fit(self.df[v].values.reshape([-1, 1]))
@@ -57,7 +58,7 @@ class DataSet():
                 self.variable_dict[v]['inverse_transform'] = scaler.inverse_transform
 
         for v in self.variable_names:
-            if(self.variable_dict[v]['type'] == 'Categorical'):
+            if(self.variable_dict[v]['type'] == 'categorical'):
                 non_missing_inds = self.df[v].isnull() == False
                 self.df[v][non_missing_inds] = self.variable_dict[v]['transform'](self.df[v][non_missing_inds])
                 self.df[v].astype('category')

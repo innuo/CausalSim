@@ -16,9 +16,13 @@ class CausalStructure:
     def make_graph_properties(self):
         self.topo_sorted = list(nx.topological_sort(self.dag))
         self.parents = dict(zip(self.variable_names, [[]] * len(self.variable_names)))
+        self.roots = []
         for v in self.topo_sorted:
-            self.parents[v] = list(nx.DiGraph.predecessors(self.dag, v))
-
+            parents = list(nx.DiGraph.predecessors(self.dag, v))
+            self.parents[v] = parents
+            if len(parents) == 0:
+                self.roots.append(v)
+                
     # TODO: improve structure learning
     def learn_structure(self, dataset):
         gs = cdt.causality.graph.bnlearn.GS()
