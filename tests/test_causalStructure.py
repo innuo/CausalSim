@@ -10,7 +10,7 @@ class TestCausalStructure(TestCase):
     def test_learn_structure(self):
         df = pd.read_csv(os.path.join(THIS_DIR, '../data/5d.csv'))
         r = DataSet([df])
-        cs = CausalStructure(r.variables)
+        cs = CausalStructure(r.variable_names)
         cs.learn_structure(r)
         self.assertTrue(cs.dag.has_edge("Price", "VolumeBought"))
         self.assertTrue(cs.dag.has_edge("Product", "VolumeBought"))
@@ -19,12 +19,6 @@ class TestCausalStructure(TestCase):
         self.assertTrue(cs.dag.has_edge("Product", "Price"))
         self.assertTrue(cs.dag.has_edge("Channel", "Price"))
 
-
-    def test_update_structure(self):
-        self.assertTrue(True)
-
-    def test_merge(self):
-        self.assertTrue(True)
 
 if __name__ == '__main__':
     main()

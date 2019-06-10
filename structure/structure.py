@@ -1,8 +1,6 @@
 import cdt
 import networkx as nx
-
-
-
+import pandas as pd
 
 class CausalStructure:
     def __init__(self, variable_names, dag=None):
@@ -13,18 +11,23 @@ class CausalStructure:
         if dag is not None:
             self.dag = nx.compose(dag, self.dag)
 
-    # TODO: improve structure learning
-    def learn_structure(self, dataset):
-        gs = cdt.causality.graph.bnlearn.GS()
-        dataset_dag = gs.create_graph_from_data(dataset.df)
-        self.update_structure(dataset_dag, 'replace', 'self')
+        self.make_graph_properties()
 
-    def update_structure(self, dag, merge_type='replace', priority='self'):
-        self.merge(dag, merge_type, priority)
+    def make_graph_properties(self):
         self.topo_sorted = list(nx.topological_sort(self.dag))
         self.parents = dict(zip(self.variable_names, [[]] * len(self.variable_names)))
         for v in self.topo_sorted:
             self.parents[v] = list(nx.DiGraph.predecessors(self.dag, v))
+
+    # TODO: improve structure learning
+    def learn_structure(self, dataset):
+        gs = cdt.causality.graph.bnlearn.GS()
+        dataset_dag = gs.create_graph_from_data(dataset.raw_df)
+        self.update_structure(dataset_dag, 'replace', 'self')
+
+    def update_structure(self, dag, merge_type='replace', priority='self'):
+        self.merge(dag, merge_type, priority)
+        self.make_graph_properties()
 
     def merge(self, dag, merge_type="union", priority="self"):
         """ merge_type = "union" is a simple compose of the two graphs with possible cycles

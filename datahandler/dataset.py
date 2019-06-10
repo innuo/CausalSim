@@ -28,7 +28,8 @@ class DataSet():
     def __init__(self, data_frame_list, infer_categoricals=True, categorical_cols=None):
         """categorical_cols: list of categorical column _names_ """
 
-        self.df = pd.concat(data_frame_list, axis=0, ignore_index=True, sort=True)
+        self.raw_df = pd.concat(data_frame_list, axis=0, ignore_index=True, sort=True)
+        self.df = self.raw_df.copy()
         self.variable_names = list(self.df.columns)
  
         if not infer_categoricals:
@@ -38,28 +39,30 @@ class DataSet():
         
         self.variable_dict = dict()
         for v in self.variable_names:
-            self.variable_dict[v] = [None, None, None, None]
+            self.variable_dict[v] = dict()
             if v in self.categorical_cols:
-                self.variable_dict[v][0] = "Categorical"
+                self.variable_dict[v]['type'] = "Categorical"
                 le = preprocessing.LabelEncoder()
-                le.fit(self.df[v])
-                self.variable_dict[v][1] = np.count_nonzero(~np.isnan(le.classes_))
-                self.variable_dict[v][2] = le.transform
-                self.variable_dict[v][3] = le.inverse_transform
+                inds = self.df[v].isnull() == False
+                le.fit(self.df[v][inds])
+                self.variable_dict[v]['dim'] = np.count_nonzero(le.classes_)
+                self.variable_dict[v]['transform'] = le.transform
+                self.variable_dict[v]['inverse_transform'] = le.inverse_transform
             else:
-                self.variable_dict[v][0] = "Numeric"
-                self.variable_dict[v][1] = 1
+                self.variable_dict[v]['type'] = "Numeric"
+                self.variable_dict[v]['dim'] = 1
                 scaler = preprocessing.StandardScaler()
                 scaler.fit(self.df[v].values.reshape([-1, 1]))
-                self.variable_dict[v][2] = scaler.transform
-                self.variable_dict[v][3] = scaler.inverse_transform
+                self.variable_dict[v]['transform'] = scaler.transform
+                self.variable_dict[v]['inverse_transform'] = scaler.inverse_transform
 
         for v in self.variable_names:
-            if(self.variable_dict[v][0] == 'Categorical'):
+            if(self.variable_dict[v]['type'] == 'Categorical'):
                 non_missing_inds = self.df[v].isnull() == False
-                self.df[v][non_missing_inds] = self.variable_dict[v][2](self.df[v][non_missing_inds])
+                self.df[v][non_missing_inds] = self.variable_dict[v]['transform'](self.df[v][non_missing_inds])
+                self.df[v].astype('category')
             else:
-                self.df[v] = self.variable_dict[v][2](self.df[v].values.reshape([-1, 1]))
+                self.df[v] = self.variable_dict[v]['transform'](self.df[v].values.reshape([-1, 1]))
 
     def __sniff_categorical(self):
         num_unique_values = [len(self.df[c].unique()) for c in list(self.df)]
@@ -83,3 +86,4 @@ if __name__ == '__main__':
 
     dataset = DataSet([dd, ds, dp])
     print(dataset.df.describe())
+    print(dataset.df.dtypes)
