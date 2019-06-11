@@ -31,10 +31,38 @@ class SystemModel():
         self.structure = structure
         self.is_trained = False
     
-    def learn_samplers(self):
+    def learn_generators(self, dataset, options):
+        dataloader = DataLoader(dataset, batch_size=options['batch_size'], shuffle=True)
+        forward_optim = optim.Adam(self.latent_generator.parameters(), lr=args.lr)
+        latent_optim  = optim.Adam(self.forward_generator.parameters(), lr=args.lr)
+
+        forward_scheduler = StepLR(enc_optim, step_size=5, gamma=0.5)
+        latent_scheduler  = StepLR(dec_optim, step_size=5, gamma=0.5)
+
+        mse_loss = nn.MSELoss()
+        for epoch in range(options['num_epochs'])
+            for x_df in dataloader:
+                forward_optim.zero_grad()
+                latent_optim.zero_grad()
+
+                x = torch.tensor(x_df.values)
+                z     = self.latent_generator()
+                x_gen = self.forward_generator(z, do_df=pd.DataFrame()) #TODO: conditioned
+                z_prior = torchm.randn(z.shape)
+                
+                z_dist_loss  = mmd_loss(z, z_prior)
+                x_dist_loss  = mmd_loss(x, x_gen)
+                xmse         = mse_loss(x, x_gen)
+
+                total_loss = xmse + options['x_dist_scalar'] * x_dist_loss + options['z_dist_scalar'] * z_dist_loss
+                total_loss.backward()
+
+                forward_optim.step()
+                latent_optim.step()
+
         pass
     
-    def sample(self, num_samples):
+    def sample(self, num_samples, do_df=pd.DataFrame()): #TODO: conditioned
         pass
 
 

@@ -1,30 +1,11 @@
-from torch.utils.data.dataset import Dataset
-from torchvision import transforms
+from torch.utils.data.dataset import Dataset 
 import pandas as pd
 from sklearn import preprocessing
 import numpy as np
 import re
 import copy
 
-class MyMixedDataSet(Dataset):
-
-    def __init__(self, raw_dataset, input_cols=None, output_cols=None):
-        self.raw_dataset = raw_dataset
-        self.input_cols = input_cols
-        self.output_cols = output_cols
-        self.transforms = transforms.ToTensor()
-
-    def __getitem__(self, index):
-        output_vec = self.raw_dataset.df.loc[index, self.output_cols]
-        input_vec = self.raw_dataset.df.loc[index, self.raw_dataset.one_hot_cols(self.input_cols)]
-        return input_vec, output_vec
-
-    def __len__(self):
-        return self.raw_dataset.df.shape[0]
-
-
-class DataSet():
-    
+class DataSet(Dataset): 
     def __init__(self, data_frame_list, infer_categoricals=True, categorical_cols=None):
         """categorical_cols: list of categorical column _names_ """
 
@@ -69,8 +50,15 @@ class DataSet():
         num_unique_values = [len(self.df[c].unique()) for c in list(self.df)]
         categorical_cols = [list(self.df)[i]
                             for i in range(len(num_unique_values))
-                            if num_unique_values[i] < max(np.log(self.df.shape[0]), 5)]
+                            if num_unique_values[i] < max(np.log(self.df.shape[0]), 10)]
         return categorical_cols
+
+    def __getitem__(self, index):
+        slice_df = self.raw_df.iloc[index]
+        return slice_df
+
+    def __len__(self):
+        return self.raw_df.shape[0]
 
     pass
 
