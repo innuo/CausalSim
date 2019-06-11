@@ -22,7 +22,7 @@ class CausalStructure:
             self.parents[v] = parents
             if len(parents) == 0:
                 self.roots.append(v)
-                
+
     # TODO: improve structure learning
     def learn_structure(self, dataset):
         gs = cdt.causality.graph.bnlearn.GS()
@@ -57,14 +57,8 @@ class CausalStructure:
     pass
 
 if __name__ == '__main__':
-    #import pandas as pd
-    #df =  pd.read_csv("~/work/tinkering/data/5d.csv")
-    #gs = cdt.causality.graph.bnlearn.GS()
-    #k = gs.create_graph_from_data(df)
-    #nx.draw_networkx(k)
-
     from datahandler import dataset as ds
-    r = ds.DataUtils("~/work/tinkering/data/5d.csv")
+    r = ds.DataSet([pd.read_csv("../data/5d.csv")])
     cs = CausalStructure(r.variable_names)
     cs.learn_structure(r)
     cs.plot()
