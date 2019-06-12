@@ -5,19 +5,22 @@ import pandas as pd
 
 class ForwardGenerator(nn.Module):
     def __init__(self, variable_dict, causal_graph, options):
+        super(ForwardGenerator, self).__init__()
         self.variable_dict = variable_dict
         self.causal_graph = causal_graph
         self.num_vars = len(self.variable_dict)
-        mdict = {}
-        for v in variable_dict.keys():
-            mdict[v] = MechanismNetwork(variable_dict[v]['full_parent_dim'], 1, options['hidden_dims'],
-                                            variable_dict[v]['type'] == 'categorical')
-        self.module_dict = nn.ModuleDict(mdict)
+        
+        mlist = []
+        for i, v in enumerate(self.causal_graph.topo_sorted):
+            mlist.append(MechanismNetwork(variable_dict[v]['full_parent_dim'], 1, options['hidden_dims'],
+                                            variable_dict[v]['type'] == 'categorical'))
+        self.module_list = nn.ModuleList(mlist)
+
 
     def forward(self, z, do_df=pd.DataFrame()):
         do_vars = list(do_df)
         x = Variable(torch.zeros(z.shape[0], self.num_vars))
-        for v in self.causal_graph.topo_sorted:
+        for i, v in enumerate(self.causal_graph.topo_sorted):
             if v in do_vars:
                 x[:,self.variable_dict[v]['id']] = do_df[v].values
             else:
@@ -28,7 +31,7 @@ class ForwardGenerator(nn.Module):
                     parent_col_tx = to_one_hot(parent_col, parent_dim) if self.variable_dict[v]['type'] == 'categorical' else col
                     inp = torch.cat((inp, parent_col_tx), 1)
 
-                x[:self.variable_dict['id']] = self.module_dict[v](inp)
+                x[:self.variable_dict['id']] = self.module_list[i](inp)
         
         return(x)
     pass
@@ -44,6 +47,7 @@ def to_one_hot(y, n_dims):
       
 class LatentGenerator(nn.Module):
     def __init__(self, num_latents, x_dim, options):
+        super(LatentGenerator, self).__init__()
         self.model = MechanismNetwork(2 * x_dim, num_latents, options['hidden_dims'])
 
     def forward(self, x):
