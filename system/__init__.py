@@ -1,2 +1,2 @@
-from .generators import ForwardGenerator,LatentGenerator
+from .generators import ForwardGenerator, LatentGenerator
 from .system import SystemModel

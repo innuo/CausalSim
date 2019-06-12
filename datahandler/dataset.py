@@ -21,7 +21,7 @@ class DataSet(Dataset):
         self.variable_dict = dict()
         for i, v in enumerate(self.variable_names):
             self.variable_dict[v] = dict()
-            self.variable_dict['id'] = i
+            self.variable_dict[v]['id'] = i
             if v in self.categorical_cols:
                 self.variable_dict[v]['type'] = "categorical"
                 le = preprocessing.LabelEncoder()

@@ -1,6 +1,9 @@
-from sklearn import preprocessing
-import ForwardGenerator
-import LatentGenerator
+import pandas as pd
+import torch.nn as nn
+from torch.utils.data import DataLoader
+import torch.optim as optim
+from torch.optim.lr_scheduler import StepLR
+from generators import ForwardGenerator, LatentGenerator
 
 class SystemModel():
     def __init__(self, variable_dict, causal_graph, 
@@ -11,14 +14,14 @@ class SystemModel():
         self.causal_graph = causal_graph
         self.num_latents = 0
         for v in self.variable_dict.keys():
-            
-            self.variable_dict[v]['latents'] = ['z_%s'%v] + additional_latent_dict[v]
+            additional_latents = additional_latent_dict[v] if additional_latent_dict is not None else []
+            self.variable_dict[v]['latents'] = ['z_%s'%v] + additional_latents
             self.variable_dict[v]['latent_ids'] = range(self.num_latents, self.num_latents+len(self.variable_dict[v]['latents']))
             self.num_latents = self.num_latents + len(self.variable_dict[v]['latents'])
             
             #self.variable_dict[v]['parent_ids'] = [self.variable_dict[k]['id'] for k in causal_graph.parents[v]]
             parent_dim = sum([self.variable_dict[k]['dim'] for k in causal_graph.parents[v]])
-            self.variable_dict[v].full_parent_dim = parent_dim + len(self.variable_dict[v]['latents'])
+            self.variable_dict[v]['full_parent_dim'] = parent_dim + len(self.variable_dict[v]['latents'])
    
         self.x_one_hot_dim = sum([self.variable_dict[k]['dim'] for k in self.variable_dict.keys()])
   
@@ -33,14 +36,14 @@ class SystemModel():
     
     def learn_generators(self, dataset, options):
         dataloader = DataLoader(dataset, batch_size=options['batch_size'], shuffle=True)
-        forward_optim = optim.Adam(self.latent_generator.parameters(), lr=args.lr)
-        latent_optim  = optim.Adam(self.forward_generator.parameters(), lr=args.lr)
+        forward_optim = optim.Adam(self.forward_generator.parameters(), lr=options['forward_lr'])
+        latent_optim  = optim.Adam(self.latent_generator.parameters(), lr=options['latent_lr'])
 
-        forward_scheduler = StepLR(enc_optim, step_size=5, gamma=0.5)
-        latent_scheduler  = StepLR(dec_optim, step_size=5, gamma=0.5)
+        forward_scheduler = StepLR(forward_optim, step_size=5, gamma=0.5)
+        latent_scheduler  = StepLR(latent_optim, step_size=5, gamma=0.5)
 
         mse_loss = nn.MSELoss()
-        for epoch in range(options['num_epochs'])
+        for epoch in range(options['num_epochs']):
             for x_df in dataloader:
                 forward_optim.zero_grad()
                 latent_optim.zero_grad()
@@ -60,9 +63,21 @@ class SystemModel():
                 forward_optim.step()
                 latent_optim.step()
 
+        self.is_trained = True
         pass
     
     def sample(self, num_samples, do_df=pd.DataFrame()): #TODO: conditioned
         pass
 
+
+if __name__ == '__main__':
+    from datahandler import DataSet
+    from structure import CausalStructure
+    import os
+
+    df = pd.read_csv('../data/5d.csv')
+    r = DataSet([df])
+    cs = CausalStructure(r.variable_names)
+    cs.learn_structure(r)
+    sm = SystemModel(r.variable_dict, cs)
 

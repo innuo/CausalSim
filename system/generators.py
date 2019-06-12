@@ -10,7 +10,7 @@ class ForwardGenerator(nn.Module):
         self.num_vars = len(self.variable_dict)
         mdict = {}
         for v in variable_dict.keys():
-            mdict[v] = MechanismNetwork(variable_dict[v].full_parent_dim[v], 1, options['hidden_dims'],
+            mdict[v] = MechanismNetwork(variable_dict[v]['full_parent_dim'], 1, options['hidden_dims'],
                                             variable_dict[v]['type'] == 'categorical')
         self.module_dict = nn.ModuleDict(mdict)
 
