@@ -24,14 +24,14 @@ class ForwardGenerator(nn.Module):
             if v in do_vars:
                 x[:,self.variable_dict[v]['id']] = do_df[v].values
             else:
-                inp = z[self.variable_dict[v]['latent_ids']]
+                inp = z[:,self.variable_dict[v]['latent_ids']]
                 for p in self.causal_graph.parents[v]:
                     parent_col = x[:,self.variable_dict[p]['id']]
                     parent_dim = self.variable_dict[p]['dim']
-                    parent_col_tx = to_one_hot(parent_col, parent_dim) if self.variable_dict[v]['type'] == 'categorical' else col
+                    parent_col_tx = to_one_hot(parent_col, parent_dim) if self.variable_dict[p]['type'] == 'categorical' else parent_col.unsqueeze(1)
                     inp = torch.cat((inp, parent_col_tx), 1)
 
-                x[:self.variable_dict['id']] = self.module_list[i](inp)
+                x[:,self.variable_dict[v]['id']] = self.module_list[i](inp).squeeze()
         
         return(x)
     pass
@@ -46,14 +46,24 @@ def to_one_hot(y, n_dims):
 
       
 class LatentGenerator(nn.Module):
-    def __init__(self, num_latents, x_dim, options):
+    def __init__(self, num_latents, x_dim, x_one_hot_dim, variable_dict, options):
         super(LatentGenerator, self).__init__()
-        self.model = MechanismNetwork(2 * x_dim, num_latents, options['hidden_dims'])
+        self.x_dim = x_dim
+        self.x_one_hot_dim = x_one_hot_dim
+        self.model = MechanismNetwork(x_dim + x_one_hot_dim, num_latents, options['hidden_dims'])
+        self.variable_dict = variable_dict
 
     def forward(self, x):
         x_missing = x != x
         x[x_missing] = 0
-        x_cat = torch.cat((x, x_missing), 1)
+        x_cat = x_missing.type(torch.FloatTensor)
+        
+        for v in self.variable_dict.keys():
+            col = x[:,self.variable_dict[v]['id']]
+            dim = self.variable_dict[v]['dim']
+            col_tx = to_one_hot(col, dim) if self.variable_dict[v]['type'] == 'categorical' else col.unsqueeze(1)
+            x_cat = torch.cat((x_cat, col_tx.type(torch.FloatTensor)), 1) 
+
         z = self.model(x_cat)
         return z
 
@@ -78,16 +88,17 @@ class MechanismNetwork(nn.Module):
         self.output_layer = nn.Linear(hidden_dims[-1], output_dim)
 
         if categorical_output:
-            self.transform_layer = nn.Sigmoid()
+            self.transform_layer = nn.Sigmoid() #TODO: softmax
         else:
             self.transform_layer = nn.Linear(output_dim, output_dim) #change to Identity
 
     def forward(self, x):
         for i in range(self.num_hidden_layers):
-            x = self.nonlin_layers(self.lin_layers[i](x))
+            x = self.nonlin_layers[i](self.lin_layers[i](x))
+ 
         pred = self.transform_layer(self.output_layer(x))      
         if self.categorical_output:
-              _, y = torch.max(pred)
+              _, y = torch.max(pred, 1) #TODO: does this work?
         else:
             y = pred
         return y

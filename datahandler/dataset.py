@@ -54,7 +54,7 @@ class DataSet(Dataset):
         return categorical_cols
 
     def __getitem__(self, index):
-        slice_df = self.df.iloc[index]
+        slice_df = self.df.iloc[index].to_dict()
         return slice_df
 
     def __len__(self):

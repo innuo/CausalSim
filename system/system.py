@@ -1,4 +1,5 @@
 import pandas as pd
+import torch
 import torch.nn as nn
 from torch.utils.data import DataLoader
 import torch.optim as optim
@@ -28,8 +29,10 @@ class SystemModel():
    
         self.x_one_hot_dim = sum([self.variable_dict[k]['dim'] for k in self.variable_dict.keys()])
   
-        self.forward_generator = ForwardGenerator(self.variable_dict, self.causal_graph, {'hidden_dims':[10, 10]})
-        self.latent_generator = LatentGenerator(self.num_latents, self.x_one_hot_dim, {'hidden_dims':[10, 10]})
+        self.forward_generator = ForwardGenerator(self.variable_dict, 
+                                    self.causal_graph, {'hidden_dims':[10, 10]})
+        self.latent_generator = LatentGenerator(self.num_latents, 
+                            len(self.variable_dict), self.x_one_hot_dim, self.variable_dict, {'hidden_dims':[10, 10]})
            
         self.is_trained = False
 
@@ -46,30 +49,34 @@ class SystemModel():
         latent_scheduler  = StepLR(latent_optim, step_size=5, gamma=0.5)
 
         mse_loss = nn.MSELoss()
+        num_x = 0
         for epoch in range(options['num_epochs']):
-            for x_df in dataloader:
+            for x_dict in dataloader:
+                x_df = pd.DataFrame.from_dict(x_dict)
                 forward_optim.zero_grad()
                 latent_optim.zero_grad()
+                num_x += x_df.shape[0]
 
                 x = torch.tensor(x_df.values)
-                x_missing = x != x
-                
+                x_missing = x != x    
 
                 z     = self.latent_generator(x)
                 x_gen = self.forward_generator(z, do_df=pd.DataFrame()) #TODO: conditioned
                 z_prior = torch.randn(z.shape)
                 
                 z_dist_loss  = mmd_loss(z, z_prior)
-                x_dist_loss  = mmd_loss(x, x_gen)
-                xmse         = mse_loss(x, x_gen)
+                #x_dist_loss  = mmd_loss(x, x_gen)
+                xmse         = mse_loss(x.type(torch.FloatTensor), x_gen)
 
-                total_loss = xmse + options['x_dist_scalar'] * x_dist_loss + options['z_dist_scalar'] * z_dist_loss
+                total_loss = xmse + options['z_dist_scalar'] * z_dist_loss #+ options['x_dist_scalar'] * x_dist_loss
                 total_loss.backward()
 
                 forward_optim.step()
                 latent_optim.step()
+                if num_x % 500 == 0:
+                    print ("Epoch = %2d, num_x = %5d, x_loss = %.5f, z_loss = %.5f"%
+                           (epoch, num_x, xmse, z_dist_loss))
 
-            
             forward_scheduler.step()
             latent_scheduler.step()
 
@@ -82,7 +89,7 @@ class SystemModel():
 def square_dist_mat(x, y):
     xs = x.pow(2).sum(1, keepdim=True)
     ys = y.pow(2).sum(1, keepdim=True)
-    return torch.clamp(xs + ys.t() - 2.0 * x * y.t(), min=0.0)
+    return torch.clamp(xs + ys.t() - 2.0 * x @ y.t(), min=0.0)
 
 def mmd_loss(x, y, d = 1):
     dists_x = square_dist_mat(x, x)
@@ -110,5 +117,12 @@ if __name__ == '__main__':
     cs.learn_structure(r)
     sm = SystemModel(r.variable_dict, cs)
 
+    options = {'batch_size':10,
+               'num_epochs':20,
+               'forward_lr': 0.001,
+               'latent_lr':0.01,
+               'z_dist_scalar': 10.0
+                }
 
+    sm.learn_generators(r, options)
 
