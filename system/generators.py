@@ -12,7 +12,7 @@ class ForwardGenerator(nn.Module):
         
         mlist = []
         for i, v in enumerate(self.causal_graph.topo_sorted):
-            mlist.append(MechanismNetwork(variable_dict[v]['full_parent_dim'], 1, options['hidden_dims'],
+            mlist.append(MechanismNetwork(variable_dict[v]['full_parent_dim'], variable_dict[v]['dim'], options['hidden_dims'],
                                             variable_dict[v]['type'] == 'categorical'))
         self.module_list = nn.ModuleList(mlist)
 
@@ -20,6 +20,8 @@ class ForwardGenerator(nn.Module):
     def forward(self, z, do_df=pd.DataFrame()):
         do_vars = list(do_df)
         x = Variable(torch.zeros(z.shape[0], self.num_vars))
+        x_one_hot_dict = dict()
+
         for i, v in enumerate(self.causal_graph.topo_sorted):
             if v in do_vars:
                 x[:,self.variable_dict[v]['id']] = do_df[v].values
@@ -31,9 +33,11 @@ class ForwardGenerator(nn.Module):
                     parent_col_tx = to_one_hot(parent_col, parent_dim) if self.variable_dict[p]['type'] == 'categorical' else parent_col.unsqueeze(1)
                     inp = torch.cat((inp, parent_col_tx), 1)
 
-                x[:,self.variable_dict[v]['id']] = self.module_list[i](inp).squeeze()
+                pred, pred_one_hot = self.module_list[i](inp)
+                x[:,self.variable_dict[v]['id']] = pred.squeeze()
+                x_one_hot_dict[v] = pred_one_hot
         
-        return(x)
+        return x, x_one_hot_dict
     pass
 
 def to_one_hot(y, n_dims):
@@ -64,7 +68,7 @@ class LatentGenerator(nn.Module):
             col_tx = to_one_hot(col, dim) if self.variable_dict[v]['type'] == 'categorical' else col.unsqueeze(1)
             x_cat = torch.cat((x_cat, col_tx.type(torch.FloatTensor)), 1) 
 
-        z = self.model(x_cat)
+        z,_ = self.model(x_cat)
         return z
 
 class MechanismNetwork(nn.Module):
@@ -87,18 +91,13 @@ class MechanismNetwork(nn.Module):
         self.nonlin_layers = nn.ModuleList(nonlin_layers)
         self.output_layer = nn.Linear(hidden_dims[-1], output_dim)
 
-        if categorical_output:
-            self.transform_layer = nn.Sigmoid() #TODO: softmax
-        else:
-            self.transform_layer = nn.Linear(output_dim, output_dim) #change to Identity
-
     def forward(self, x):
         for i in range(self.num_hidden_layers):
             x = self.nonlin_layers[i](self.lin_layers[i](x))
  
-        pred = self.transform_layer(self.output_layer(x))      
+        pred = self.output_layer(x)   
         if self.categorical_output:
-              _, y = torch.max(pred, 1) #TODO: does this work?
+            _, y = torch.max(pred, 1) #TODO: does this work?
+            return y, pred
         else:
-            y = pred
-        return y
+            return pred, None

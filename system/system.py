@@ -16,6 +16,10 @@ class SystemModel():
         self.numeric_col_ids = [variable_dict[v]['id'] for v in variable_dict.keys() if variable_dict[v]['type'] == 'numeric']
 
         self.causal_graph = causal_graph
+
+        self.categorical_cols = [v for v in variable_dict.keys()
+                              if variable_dict[v]['type'] == "categorical"]
+        
         self.num_latents = 0
         for v in self.variable_dict.keys():
             additional_latents = additional_latent_dict[v] if additional_latent_dict is not None else []
@@ -33,7 +37,7 @@ class SystemModel():
                                     self.causal_graph, {'hidden_dims':[10, 10]})
         self.latent_generator = LatentGenerator(self.num_latents, 
                             len(self.variable_dict), self.x_one_hot_dim, self.variable_dict, {'hidden_dims':[10, 10]})
-           
+        
         self.is_trained = False
 
     def update_structure(self, structure):
@@ -49,33 +53,43 @@ class SystemModel():
         latent_scheduler  = StepLR(latent_optim, step_size=5, gamma=0.5)
 
         mse_loss = nn.MSELoss()
-        num_x = 0
+        ce_loss  = nn.CrossEntropyLoss()
+
+        num_batches = 0
         for epoch in range(options['num_epochs']):
             for x_dict in dataloader:
                 x_df = pd.DataFrame.from_dict(x_dict)
                 forward_optim.zero_grad()
                 latent_optim.zero_grad()
-                num_x += x_df.shape[0]
+                num_batches += 1
 
                 x = torch.tensor(x_df.values)
                 x_missing = x != x    
 
                 z     = self.latent_generator(x)
-                x_gen = self.forward_generator(z, do_df=pd.DataFrame()) #TODO: conditioned
+                x_gen, x_gen_one_hot_dict = self.forward_generator(z, do_df=pd.DataFrame()) #TODO: conditioned
                 z_prior = torch.randn(z.shape)
                 
                 z_dist_loss  = mmd_loss(z, z_prior)
                 #x_dist_loss  = mmd_loss(x, x_gen)
-                xmse         = mse_loss(x.type(torch.FloatTensor), x_gen)
+        
+                xmse         = mse_loss(x[:,self.numeric_col_ids].type(torch.FloatTensor), 
+                                           x_gen[:,self.numeric_col_ids])
 
-                total_loss = xmse + options['z_dist_scalar'] * z_dist_loss #+ options['x_dist_scalar'] * x_dist_loss
+                total_loss = options['z_dist_scalar'] * z_dist_loss #+ options['x_dist_scalar'] * x_dist_loss
+                total_loss += xmse #TODO: handle missing values in x
+                for v in self.categorical_cols:
+                    target = x[:,self.variable_dict[v]['id']].type(torch.LongTensor)
+                    inds = target == target #TODO: handle missing values in x
+                    total_loss += ce_loss(x_gen_one_hot_dict[v], target)
+
                 total_loss.backward()
 
                 forward_optim.step()
                 latent_optim.step()
-                if num_x % 500 == 0:
-                    print ("Epoch = %2d, num_x = %5d, x_loss = %.5f, z_loss = %.5f"%
-                           (epoch, num_x, xmse, z_dist_loss))
+                if (num_batches * options['batch_size']) % 500  == 0:
+                    print ("Epoch = %2d, num_b = %5d, x_loss = %.5f, z_loss = %.5f"%
+                           (epoch, num_batches, xmse, z_dist_loss))
 
             forward_scheduler.step()
             latent_scheduler.step()
