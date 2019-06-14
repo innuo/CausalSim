@@ -61,6 +61,7 @@ class MechanismNetwork(nn.Module):
     def __init__(self, input_dim, output_dim, hidden_dims, categorical_output=False):
         super(MechanismNetwork, self).__init__()
         self.num_hidden_layers = len(hidden_dims)
+        self.categorical_output = categorical_output
         lin_layers = []
         nonlin_layers = []
 
@@ -84,5 +85,9 @@ class MechanismNetwork(nn.Module):
     def forward(self, x):
         for i in range(self.num_hidden_layers):
             x = self.nonlin_layers(self.lin_layers[i](x))
-        y = self.transform_layer(self.output_layer(x))        
+        pred = self.transform_layer(self.output_layer(x))      
+        if self.categorical_output:
+              _, y = torch.max(pred)
+        else:
+            y = pred
         return y

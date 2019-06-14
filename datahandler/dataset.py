@@ -6,7 +6,7 @@ import re
 import copy
 
 class DataSet(Dataset): 
-    def __init__(self, data_frame_list, infer_categoricals=True, categorical_cols=None):
+    def __init__(self, data_frame_list, infer_categoricals=True, categorical_cols=[]):
         """categorical_cols: list of categorical column _names_ """
 
         self.raw_df = pd.concat(data_frame_list, axis=0, ignore_index=True, sort=True)
@@ -54,11 +54,11 @@ class DataSet(Dataset):
         return categorical_cols
 
     def __getitem__(self, index):
-        slice_df = self.raw_df.iloc[index]
+        slice_df = self.df.iloc[index]
         return slice_df
 
     def __len__(self):
-        return self.raw_df.shape[0]
+        return self.df.shape[0]
 
     pass
 

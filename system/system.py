@@ -9,8 +9,11 @@ class SystemModel():
     def __init__(self, variable_dict, causal_graph, 
                          conditional_model=True, 
                          additional_latent_dict = None):
-        ### variable_dict {variable_name: dict{'type', 'dim', 'transform', 'inverse_transform'})
+        ### variable_dict {variable_name: dict{'type', 'dim', 'trasform', 'inverse_transform'})
         self.variable_dict = variable_dict
+        self.categorical_col_ids = [variable_dict[v]['id'] for v in variable_dict.keys() if variable_dict[v]['type'] == 'categorical']
+        self.numeric_col_ids = [variable_dict[v]['id'] for v in variable_dict.keys() if variable_dict[v]['type'] == 'numeric']
+
         self.causal_graph = causal_graph
         self.num_latents = 0
         for v in self.variable_dict.keys():
@@ -49,9 +52,12 @@ class SystemModel():
                 latent_optim.zero_grad()
 
                 x = torch.tensor(x_df.values)
-                z     = self.latent_generator()
+                x_missing = x != x
+                
+
+                z     = self.latent_generator(x)
                 x_gen = self.forward_generator(z, do_df=pd.DataFrame()) #TODO: conditioned
-                z_prior = torchm.randn(z.shape)
+                z_prior = torch.randn(z.shape)
                 
                 z_dist_loss  = mmd_loss(z, z_prior)
                 x_dist_loss  = mmd_loss(x, x_gen)
@@ -63,13 +69,36 @@ class SystemModel():
                 forward_optim.step()
                 latent_optim.step()
 
+            
+            forward_scheduler.step()
+            latent_scheduler.step()
+
         self.is_trained = True
         pass
     
     def sample(self, num_samples, do_df=pd.DataFrame()): #TODO: conditioned
         pass
 
+def square_dist_mat(x, y):
+    xs = x.pow(2).sum(1, keepdim=True)
+    ys = y.pow(2).sum(1, keepdim=True)
+    return torch.clamp(xs + ys.t() - 2.0 * x * y.t(), min=0.0)
 
+def mmd_loss(x, y, d = 1):
+    dists_x = square_dist_mat(x, x)
+    dists_y = square_dist_mat(y, y)
+    dists_xy = square_dist_mat(x, y)
+
+    dist = 0
+    for scale in [0.1, 1.0, 10.]:
+        c = d * scale
+        res  = c/(c + dists_x) + c/(c+ dists_y) - 2 * c/(c + dists_xy)
+        dist += res.mean()
+    
+    return dist
+
+        
+ 
 if __name__ == '__main__':
     from datahandler import DataSet
     from structure import CausalStructure
@@ -80,4 +109,6 @@ if __name__ == '__main__':
     cs = CausalStructure(r.variable_names)
     cs.learn_structure(r)
     sm = SystemModel(r.variable_dict, cs)
+
+
 
