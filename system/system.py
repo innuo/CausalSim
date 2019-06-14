@@ -5,6 +5,8 @@ from torch.utils.data import DataLoader
 import torch.optim as optim
 from torch.optim.lr_scheduler import StepLR
 from generators import ForwardGenerator, LatentGenerator
+import matplotlib.pyplot as plt
+import seaborn as sb
 
 class SystemModel():
     def __init__(self, variable_dict, causal_graph, 
@@ -34,9 +36,9 @@ class SystemModel():
         self.x_one_hot_dim = sum([self.variable_dict[k]['dim'] for k in self.variable_dict.keys()])
   
         self.forward_generator = ForwardGenerator(self.variable_dict, 
-                                    self.causal_graph, {'hidden_dims':[10, 10]})
+                                    self.causal_graph, {'hidden_dims':[10, 10, 10]})
         self.latent_generator = LatentGenerator(self.num_latents, 
-                            len(self.variable_dict), self.x_one_hot_dim, self.variable_dict, {'hidden_dims':[10, 10]})
+                            len(self.variable_dict), self.x_one_hot_dim, self.variable_dict, {'hidden_dims':[10, 10, 10]})
         
         self.is_trained = False
 
@@ -94,6 +96,15 @@ class SystemModel():
             forward_scheduler.step()
             latent_scheduler.step()
 
+            if epoch % 2 == 1:
+                x_gen = x_gen.detach().numpy()
+                x = x.detach().numpy()
+
+                sb.pairplot(pd.DataFrame(x), markers="+")
+                sb.pairplot(pd.DataFrame(x_gen), markers="o")
+                plt.show()
+                
+
         self.is_trained = True
         pass
     
@@ -125,13 +136,13 @@ if __name__ == '__main__':
     from structure import CausalStructure
     import os
 
-    df = pd.read_csv('../data/5d.csv')
+    df = pd.read_csv('data/5dmissing.csv')
     r = DataSet([df])
     cs = CausalStructure(r.variable_names)
     cs.learn_structure(r)
     sm = SystemModel(r.variable_dict, cs)
 
-    options = {'batch_size':10,
+    options = {'batch_size':200,
                'num_epochs':20,
                'forward_lr': 0.001,
                'latent_lr':0.01,
