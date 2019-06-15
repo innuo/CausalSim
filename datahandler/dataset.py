@@ -1,3 +1,4 @@
+import torch
 from torch.utils.data.dataset import Dataset 
 import pandas as pd
 from sklearn import preprocessing
@@ -9,8 +10,8 @@ class DataSet(Dataset):
     def __init__(self, data_frame_list, infer_categoricals=True, categorical_cols=[]):
         """categorical_cols: list of categorical column _names_ """
 
-        self.raw_df = pd.concat(data_frame_list, axis=0, ignore_index=True, sort=True)
-        self.df = self.raw_df.copy()
+        self.raw_datasets = data_frame_list
+        self.df = pd.concat(data_frame_list, axis=0, ignore_index=True, sort=True)
         self.variable_names = list(self.df.columns)
  
         if not infer_categoricals:
@@ -54,7 +55,8 @@ class DataSet(Dataset):
         return categorical_cols
 
     def __getitem__(self, index):
-        slice_df = self.df.iloc[index].to_dict()
+        #slice_df = self.df.iloc[index].to_dict()
+        slice_df = torch.tensor(self.df.iloc[index])
         return slice_df
 
     def __len__(self):

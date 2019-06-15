@@ -59,13 +59,13 @@ class SystemModel():
 
         num_batches = 0
         for epoch in range(options['num_epochs']):
-            for x_dict in dataloader:
-                x_df = pd.DataFrame.from_dict(x_dict)
+            for x in dataloader:
+                #x_df = pd.DataFrame.from_dict(x_dict)
                 forward_optim.zero_grad()
                 latent_optim.zero_grad()
                 num_batches += 1
 
-                x = torch.tensor(x_df.values)
+                #x = torch.tensor(x_df.values)
                 x_missing = x != x    
 
                 z     = self.latent_generator(x)
@@ -137,6 +137,7 @@ if __name__ == '__main__':
     import os
 
     df = pd.read_csv('data/5dmissing.csv')
+    #df = pd.read_csv('data/5d.csv')
     r = DataSet([df])
     cs = CausalStructure(r.variable_names)
     cs.learn_structure(r)

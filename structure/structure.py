@@ -29,8 +29,12 @@ class CausalStructure:
     # TODO: improve structure learning
     def learn_structure(self, dataset):
         gs = cdt.causality.graph.bnlearn.GS()
-        dataset_dag = gs.create_graph_from_data(dataset.raw_df)
-        self.update_structure(dataset_dag, 'replace', 'self')
+        
+        for d in dataset.raw_datasets:
+            d_copy = d.copy()
+            d_copy.dropna()
+            dataset_dag = gs.create_graph_from_data(d_copy)
+        self.update_structure(dataset_dag, 'union', 'self')
 
     def update_structure(self, dag, merge_type='replace', priority='self'):
         self.merge(dag, merge_type, priority)
