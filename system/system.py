@@ -130,6 +130,36 @@ class SystemModel():
         self.is_trained = True
         pass
     
+    def fill(self, dataset):
+        dataset_size = dataset.__len__()
+        data_loader = DataLoader(dataset, batch_size=dataset_size,
+                             num_workers=1, shuffle=False)
+        #for x in data_loader:
+        #    all_x = x
+        all_x = next(iter(data_loader))
+
+        non_missing = all_x == all_x
+        z = self.latent_generator(all_x)
+        x_gen, _ = self.forward_generator(z)
+        x_gen[non_missing] = all_x[non_missing]
+
+        x_gen = x_gen.detach().numpy()
+
+        x_df = pd.DataFrame()
+        for v in dataset.variable_dict.keys():
+            
+            id = dataset.variable_dict[v]['id']
+            #print("%s, %d"%(v, id))
+            #print(dataset.variable_dict[v]['inverse_transform'])
+            if dataset.variable_dict[v]['type'] == 'categorical':
+                col = np.int16(x_gen[:, id])
+            else:
+                col = x_gen[:, id]
+            x_df[v] = dataset.variable_dict[v]['inverse_transform'](col)
+
+        return x_df
+
+
     def sample(self, num_samples, do_df=pd.DataFrame()): #TODO: conditioned
         pass
 
@@ -204,6 +234,7 @@ if __name__ == '__main__':
             ]
     dag.add_edges_from(edges)
     cs.update_structure(dag, merge_type="replace")
+    print("\n\nREPLACING LEARNED GRAPH WITH TRUE GRAPH")
     cs.plot()
     plt.show()
     ##################
@@ -219,3 +250,5 @@ if __name__ == '__main__':
 
     sm.learn_generators(r, options)
 
+    filled_df = sm.fill(r)
+    filled_df.to_csv ('data/toy-result.csv', index = None, header=True)
