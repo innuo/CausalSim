@@ -99,16 +99,21 @@ class SystemModel():
             if epoch % 2 == 1:
                 x_gen = x_gen.detach().numpy()
                 x = x.detach().numpy()
+                x_gen_p, _ = self.forward_generator(z_prior)
 
                 x_df = pd.DataFrame(x)
                 x_df['type'] = 'orig'
                 x_gen_df = pd.DataFrame(x_gen)
-                x_gen_df['type'] = 'gen'
+                x_gen_df['type'] = 'decoded'
+                x_gen_p_df = pd.DataFrame(x_gen_p)
+                x_gen_p_df['type'] = 'gen'
+
                 x_df = x_df.append(x_gen_df, ignore_index=True)
+                x_df = x_df.append(x_gen_p_df, ignore_index=True)
 
-
-
-                sb.pairplot(pd.DataFrame(x_df), hue = 'type', markers="+")
+                sb.pairplot(pd.DataFrame(x_df), hue = 'type', 
+                                 markers=["o", "s", "+"])
+                
                 plt.show()
                 
 
