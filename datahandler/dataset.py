@@ -72,7 +72,6 @@ class DataSet(Dataset):
     pass
 
 
-
 if __name__ == '__main__':
     #df = pd.read_csv("./data/5d.csv")
     dd = pd.read_csv('data/toy-DSD.csv', 

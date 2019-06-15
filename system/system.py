@@ -1,4 +1,5 @@
 import pandas as pd
+import numpy as np
 import torch
 import torch.nn as nn
 from torch.utils.data import DataLoader
@@ -66,7 +67,8 @@ class SystemModel():
                 num_batches += 1
 
                 #x = torch.tensor(x_df.values)
-                x_missing = x != x    
+                x_non_missing = x == x   
+                x_missing = x != x 
 
                 z     = self.latent_generator(x)
                 x_gen, x_gen_one_hot_dict = self.forward_generator(z, do_df=pd.DataFrame()) #TODO: conditioned
@@ -74,32 +76,39 @@ class SystemModel():
                 
                 z_dist_loss  = mmd_loss(z, z_prior)
                 #x_dist_loss  = mmd_loss(x, x_gen)
-        
-                xmse         = mse_loss(x[:,self.numeric_col_ids].type(torch.FloatTensor), 
-                                           x_gen[:,self.numeric_col_ids])
-
+ 
                 total_loss = options['z_dist_scalar'] * z_dist_loss #+ options['x_dist_scalar'] * x_dist_loss
-                total_loss += xmse #TODO: handle missing values in x
-                for v in self.categorical_cols:
-                    target = x[:,self.variable_dict[v]['id']].type(torch.LongTensor)
-                    inds = target == target #TODO: handle missing values in x
-                    total_loss += ce_loss(x_gen_one_hot_dict[v], target)
+                            
+                for v in self.variable_dict.keys():
+                    variable_id = self.variable_dict[v]['id']
+                    inds = torch.nonzero(x_non_missing[:,variable_id]).squeeze()
+
+                    if self.variable_dict[v]['type'] == 'category':
+                        target = x[:,variable_id].type(torch.LongTensor)
+                        total_loss += ce_loss(x_gen_one_hot_dict[v][inds], target[inds])
+                    else:
+                        target = x[:,variable_id].type(torch.FloatTensor)
+                        total_loss += mse_loss(x_gen[inds, variable_id], target[inds])
 
                 total_loss.backward()
                 forward_optim.step()
                 latent_optim.step()
 
                 if (num_batches * options['batch_size']) % 500  == 0:
-                    print ("Epoch = %2d, num_b = %5d, x_loss = %.5f, z_loss = %.5f"%
-                           (epoch, num_batches, xmse, z_dist_loss))
+                    print ("Epoch = %2d, num_b = %5d, total_loss = %.5f, z_loss = %.5f"%
+                           (epoch, num_batches, total_loss, z_dist_loss))
 
             forward_scheduler.step()
             latent_scheduler.step()
 
             if epoch % 2 == 1:
-                x_gen = x_gen.detach().numpy()
+               
                 x = x.detach().numpy()
+                x[x_missing] = np.nan
+
+                x_gen = x_gen.detach().numpy()
                 x_gen_p, _ = self.forward_generator(z_prior)
+                x_gen_p = x_gen_p.detach().numpy()
 
                 x_df = pd.DataFrame(x)
                 x_df['type'] = 'orig'
@@ -112,7 +121,8 @@ class SystemModel():
                 x_df = x_df.append(x_gen_p_df, ignore_index=True)
 
                 sb.pairplot(pd.DataFrame(x_df), hue = 'type', 
-                                 markers=["o", "s", "+"])
+                                 markers=["o", "s", "+"], 
+                                 diag_kind = "hist", dropna=True)
                 
                 plt.show()
                 
@@ -148,11 +158,14 @@ if __name__ == '__main__':
     from structure import CausalStructure
     import os
 
+    ################
     #Example 1
     #df = pd.read_csv('data/5dmissing.csv')
     #df = pd.read_csv('data/5d.csv')
     #r = DataSet([df])
+    ###############
 
+    ##############
     #Example 2
     dd = pd.read_csv('data/toy-DSD.csv', 
         usecols=['Product','Channel','Sales'])
@@ -167,19 +180,20 @@ if __name__ == '__main__':
         usecols = ['Product','Price','VolumeBought','Sales'])
 
     r = DataSet([dd, ds, dp, dt])
+    #############
 
     cs = CausalStructure(r.variable_names)
 
     cs.learn_structure(r)
     cs.plot()
     plt.show()
-    
+
     sm = SystemModel(r.variable_dict, cs)
 
     options = {'batch_size':200,
                'num_epochs':20,
-               'forward_lr': 0.001,
-               'latent_lr':0.01,
+               'forward_lr': 0.01,
+               'latent_lr':0.03,
                'z_dist_scalar': 10.0
                 }
 
