@@ -100,8 +100,15 @@ class SystemModel():
                 x_gen = x_gen.detach().numpy()
                 x = x.detach().numpy()
 
-                sb.pairplot(pd.DataFrame(x), markers="+")
-                sb.pairplot(pd.DataFrame(x_gen), markers="o")
+                x_df = pd.DataFrame(x)
+                x_df['type'] = 'orig'
+                x_gen_df = pd.DataFrame(x_gen)
+                x_gen_df['type'] = 'gen'
+                x_df = x_df.append(x_gen_df, ignore_index=True)
+
+
+
+                sb.pairplot(pd.DataFrame(x_df), hue = 'type', markers="+")
                 plt.show()
                 
 

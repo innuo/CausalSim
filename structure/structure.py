@@ -20,11 +20,14 @@ class CausalStructure:
         self.topo_sorted = list(nx.topological_sort(self.dag))
         self.parents = dict(zip(self.variable_names, [[]] * len(self.variable_names)))
         self.roots = []
+        self.non_roots = []
         for v in self.topo_sorted:
             parents = list(nx.DiGraph.predecessors(self.dag, v))
             self.parents[v] = parents
             if len(parents) == 0:
                 self.roots.append(v)
+            else:
+                self.non_roots.append(v)
 
     # TODO: improve structure learning
     def learn_structure(self, dataset):
