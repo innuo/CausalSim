@@ -43,20 +43,23 @@ class CausalStructure:
             dataset_dag = gs.create_graph_from_data(d_copy)
         self.update_structure(dataset_dag, 'union', 'self')
 
-    def update_structure(self, dag, merge_type='replace', priority='self'):
-        self.merge(dag, merge_type, priority)
+    def update_structure(self, dag, merge_type='add', priority='self'):
+        if merge_type == "replace":
+            self.dag = dag
+        else:
+            self.merge(dag, merge_type, priority)
         self.make_graph_properties()
 
     def merge(self, dag, merge_type="union", priority="self"):
         """ merge_type = "union" is a simple compose of the two graphs with possible cycles
-            merge_type = "replace" adds edges from dag to self.dag,
+            merge_type = "add" adds edges from dag to self.dag,
                           any conflicts in the edges are resolved by the priority arg
         """
         if merge_type == 'union':
             self.dag = nx.compose(dag, self.dag)
             if not nx.is_directed_acyclic_graph(self.dag):
                 print('Error: After merge no longer a DAG')
-        elif merge_type == 'replace':
+        elif merge_type == 'add':
             g1 = self.dag if priority == 'self' else dag
             g2 = dag if priority == 'self' else self.dag
             for e in g2.edges:

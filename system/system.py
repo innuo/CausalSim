@@ -188,6 +188,26 @@ if __name__ == '__main__':
     cs.plot()
     plt.show()
 
+    ### Replace structure EXAMPlE 2##
+    variable_names = list(r.df)
+    import networkx as nx
+    dag = nx.empty_graph(len(variable_names), create_using=nx.DiGraph())
+    dag = nx.relabel_nodes(dag, dict(zip(range(len(variable_names)), variable_names)))
+    
+    edges = [('Product', 'Price'), 
+            ('Channel', 'Price'),
+            ('Product', 'VolumeBought'),
+            ('Shopper', 'VolumeBought'),
+            ('Price', 'Sales'),
+            ('VolumeBought', 'Sales'),
+            ('Price', 'VolumeBought')
+            ]
+    dag.add_edges_from(edges)
+    cs.update_structure(dag, merge_type="replace")
+    cs.plot()
+    plt.show()
+    ##################
+
     sm = SystemModel(r.variable_dict, cs)
 
     options = {'batch_size':200,
