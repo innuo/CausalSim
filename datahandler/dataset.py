@@ -18,6 +18,13 @@ class DataSet(Dataset):
             self.categorical_cols = categorical_cols
         else:
             self.categorical_cols = self.__sniff_categorical()
+
+        for d in self.raw_datasets:
+            for v in d:
+                if v in self.categorical_cols:
+                    d[v] = d[v].astype('category')
+                else:
+                    d[v] = d[v].astype(np.float64)
         
         self.variable_dict = dict()
         for i, v in enumerate(self.variable_names):
@@ -43,7 +50,7 @@ class DataSet(Dataset):
             if(self.variable_dict[v]['type'] == 'categorical'):
                 non_missing_inds = self.df[v].isnull() == False
                 self.df[v][non_missing_inds] = self.variable_dict[v]['transform'](self.df[v][non_missing_inds])
-                self.df[v].astype('category')
+                #self.df[v] = self.df[v].astype('category')
             else:
                 self.df[v] = self.variable_dict[v]['transform'](self.df[v].values.reshape([-1, 1]))
 

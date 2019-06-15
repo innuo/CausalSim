@@ -86,9 +86,9 @@ class SystemModel():
                     total_loss += ce_loss(x_gen_one_hot_dict[v], target)
 
                 total_loss.backward()
-
                 forward_optim.step()
                 latent_optim.step()
+
                 if (num_batches * options['batch_size']) % 500  == 0:
                     print ("Epoch = %2d, num_b = %5d, x_loss = %.5f, z_loss = %.5f"%
                            (epoch, num_batches, xmse, z_dist_loss))
@@ -148,11 +148,32 @@ if __name__ == '__main__':
     from structure import CausalStructure
     import os
 
-    df = pd.read_csv('data/5dmissing.csv')
+    #Example 1
+    #df = pd.read_csv('data/5dmissing.csv')
     #df = pd.read_csv('data/5d.csv')
-    r = DataSet([df])
+    #r = DataSet([df])
+
+    #Example 2
+    dd = pd.read_csv('data/toy-DSD.csv', 
+        usecols=['Product','Channel','Sales'])
+
+    ds = pd.read_csv('data/toy-Survey.csv',
+        usecols=['Product','Shopper','VolumeBought'])
+
+    dp = pd.read_csv('data/toy-Product.csv',
+        usecols = ['Product','Channel','Shopper'])
+    
+    dt = pd.read_csv('data/toy-TLOG.csv',
+        usecols = ['Product','Price','VolumeBought','Sales'])
+
+    r = DataSet([dd, ds, dp, dt])
+
     cs = CausalStructure(r.variable_names)
+
     cs.learn_structure(r)
+    cs.plot()
+    plt.show()
+    
     sm = SystemModel(r.variable_dict, cs)
 
     options = {'batch_size':200,

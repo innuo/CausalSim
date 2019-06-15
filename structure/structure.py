@@ -36,6 +36,10 @@ class CausalStructure:
         for d in dataset.raw_datasets:
             d_copy = d.copy()
             d_copy.dropna()
+            for v in d_copy: #stupid shit
+                if d_copy[v].dtype.name == 'category':
+                    d_copy[v] = d[v].apply(lambda x: 'v%s'%x)
+                
             dataset_dag = gs.create_graph_from_data(d_copy)
         self.update_structure(dataset_dag, 'union', 'self')
 
