@@ -7,14 +7,16 @@ import re
 import copy
 
 class DataSet(Dataset): 
-    def __init__(self, data_frame_list, infer_categoricals=True, categorical_cols=[]):
+    def __init__(self, data_frame_list, variable_dict = None,
+                  infer_categoricals = True, categorical_cols=[]):
         """categorical_cols: list of categorical column _names_ """
 
         self.raw_datasets = data_frame_list
-        self.df = pd.concat(data_frame_list, axis=0, ignore_index=True, sort=True)
-        self.variable_names = list(self.df.columns)
- 
-        if not infer_categoricals:
+        
+        if variable_dict is not None:
+            self.categorical_cols = [v for v in variable_dict.keys() 
+                                        if variable_dict[v]['type'] == 'categorical']
+        elif not infer_categoricals:
             self.categorical_cols = categorical_cols
         else:
             self.categorical_cols = self.__sniff_categorical()
@@ -25,7 +27,34 @@ class DataSet(Dataset):
                     d[v] = d[v].astype('category')
                 else:
                     d[v] = d[v].astype(np.float64)
-        
+
+        self.df = pd.concat(data_frame_list, axis=0, ignore_index=True, sort=True)
+        self.variable_names = list(self.df.columns)
+
+        if variable_dict is None:
+            self.__make_variable_dict()
+        else:
+            self.variable_dict = variable_dict
+
+        for v in self.variable_names:
+            if self.variable_dict[v]['type'] == 'categorical':
+                self.df[v] = pd.to_numeric(self.df[v])
+                non_missing_inds = self.df[v].isnull() == False
+                self.df[v][non_missing_inds] = self.variable_dict[v]['transform'](self.df[v][non_missing_inds])
+            else:
+                self.df[v] = self.variable_dict[v]['transform'](self.df[v].values.reshape([-1, 1]))
+
+    def __sniff_categorical(self):
+        categorical_cols = []
+        for df in self.raw_datasets:
+            num_unique_values = [len(df[c].unique()) for c in list(df)]
+            categorical_cols +=  [list(df)[i]
+                            for i in range(len(num_unique_values))
+                            if num_unique_values[i] < max(np.log(df.shape[0]), 10)]
+                        
+        return list(set(categorical_cols))
+
+    def __make_variable_dict(self):
         self.variable_dict = dict()
         for i, v in enumerate(self.variable_names):
             self.variable_dict[v] = dict()
@@ -45,21 +74,6 @@ class DataSet(Dataset):
                 scaler.fit(self.df[v].values.reshape([-1, 1]))
                 self.variable_dict[v]['transform'] = scaler.transform
                 self.variable_dict[v]['inverse_transform'] = scaler.inverse_transform
-
-        for v in self.variable_names:
-            if(self.variable_dict[v]['type'] == 'categorical'):
-                non_missing_inds = self.df[v].isnull() == False
-                self.df[v][non_missing_inds] = self.variable_dict[v]['transform'](self.df[v][non_missing_inds])
-                #self.df[v] = self.df[v].astype('category')
-            else:
-                self.df[v] = self.variable_dict[v]['transform'](self.df[v].values.reshape([-1, 1]))
-
-    def __sniff_categorical(self):
-        num_unique_values = [len(self.df[c].unique()) for c in list(self.df)]
-        categorical_cols = [list(self.df)[i]
-                            for i in range(len(num_unique_values))
-                            if num_unique_values[i] < max(np.log(self.df.shape[0]), 10)]
-        return categorical_cols
 
     def __getitem__(self, index):
         #slice_df = self.df.iloc[index].to_dict()
