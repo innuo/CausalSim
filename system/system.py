@@ -101,7 +101,7 @@ class SystemModel():
             forward_scheduler.step()
             latent_scheduler.step()
 
-            if epoch % 2 == 1:
+            if epoch % 2 == 1 and options['plot']:
                
                 x = x.detach().numpy()
                 x[x_missing] = np.nan
@@ -143,25 +143,34 @@ class SystemModel():
         x_gen, _ = self.forward_generator(z)
         x_gen[non_missing] = all_x[non_missing]
 
-        x_gen = x_gen.detach().numpy()
-
-        x_df = pd.DataFrame()
-        for v in dataset.variable_dict.keys():
-            
-            id = dataset.variable_dict[v]['id']
-            #print("%s, %d"%(v, id))
-            #print(dataset.variable_dict[v]['inverse_transform'])
-            if dataset.variable_dict[v]['type'] == 'categorical':
-                col = np.int16(x_gen[:, id])
-            else:
-                col = x_gen[:, id]
-            x_df[v] = dataset.variable_dict[v]['inverse_transform'](col)
-
+        x_df = self.__make_data_frame(x_gen)
+        
         return x_df
 
 
     def sample(self, num_samples, do_df=pd.DataFrame()): #TODO: conditioned
-        pass
+        z_gen = torch.randn(num_samples, self.num_latents)
+        x_gen, _ = self.forward_generator(z_gen)
+        x_df = pd.DataFrame(x_gen)
+        x_df = self.__make_data_frame(x_gen)
+        return x_df
+
+
+    def __make_data_frame(self, x_gen):
+        x_gen = x_gen.detach().numpy()
+        x_df = pd.DataFrame()
+        for v in self.variable_dict.keys():
+            
+            id = self.variable_dict[v]['id']
+            #print("%s, %d"%(v, id))
+            #print(dataset.variable_dict[v]['inverse_transform'])
+            if self.variable_dict[v]['type'] == 'categorical':
+                col = np.int16(x_gen[:, id])
+            else:
+                col = x_gen[:, id]
+            x_df[v] = self.variable_dict[v]['inverse_transform'](col)
+
+        return x_df
 
 def square_dist_mat(x, y):
     xs = x.pow(2).sum(1, keepdim=True)
@@ -245,10 +254,14 @@ if __name__ == '__main__':
                'num_epochs':20,
                'forward_lr': 0.01,
                'latent_lr':0.03,
-               'z_dist_scalar': 10.0
+               'z_dist_scalar': 10.0,
+               'plot':False
                 }
 
     sm.learn_generators(r, options)
 
     filled_df = sm.fill(r)
     filled_df.to_csv ('data/toy-result.csv', index = None, header=True)
+
+    sample_df = sm.sample(1000)
+    sample_df.to_csv('data/toy-simulated.csv', index=None, header=True)
