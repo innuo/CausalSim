@@ -52,8 +52,8 @@ class SystemModel():
         forward_optim = optim.Adam(self.forward_generator.parameters(), lr=options['forward_lr'])
         latent_optim  = optim.Adam(self.latent_generator.parameters(), lr=options['latent_lr'])
 
-        forward_scheduler = StepLR(forward_optim, step_size=5, gamma=0.5)
-        latent_scheduler  = StepLR(latent_optim, step_size=5, gamma=0.5)
+        forward_scheduler = StepLR(forward_optim, step_size=5, gamma=0.8)
+        latent_scheduler  = StepLR(latent_optim, step_size=5, gamma=0.8)
 
         mse_loss = nn.MSELoss()
         ce_loss  = nn.CrossEntropyLoss()
@@ -71,8 +71,11 @@ class SystemModel():
                 x_missing = x != x 
 
                 z     = self.latent_generator(x)
-                x_gen, x_gen_one_hot_dict = self.forward_generator(z, do_df=pd.DataFrame()) #TODO: conditioned
                 z_prior = torch.randn(z.shape)
+
+                #x_gen, x_gen_one_hot_dict = self.forward_generator(z, do_df=pd.DataFrame()) #TODO: conditioned
+                x_gen, x_gen_one_hot_dict = self.forward_generator(z + 0.1*z_prior, do_df=pd.DataFrame()) #TODO: conditioned
+
                 
                 z_dist_loss  = mmd_loss(z, z_prior)
                 #x_dist_loss  = mmd_loss(x, x_gen)
@@ -250,8 +253,8 @@ if __name__ == '__main__':
 
     sm = SystemModel(r.variable_dict, cs)
 
-    options = {'batch_size':200,
-               'num_epochs':20,
+    options = {'batch_size':500,
+               'num_epochs':50,
                'forward_lr': 0.01,
                'latent_lr':0.03,
                'z_dist_scalar': 10.0,
