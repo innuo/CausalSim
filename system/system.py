@@ -37,9 +37,9 @@ class SystemModel():
         self.x_one_hot_dim = sum([self.variable_dict[k]['dim'] for k in self.variable_dict.keys()])
   
         self.forward_generator = ForwardGenerator(self.variable_dict, 
-                                    self.causal_graph, {'hidden_dims':[10, 10, 10]})
+                                    self.causal_graph, {'hidden_dims':[10, 10]})
         self.latent_generator = LatentGenerator(self.num_latents, 
-                            len(self.variable_dict), self.x_one_hot_dim, self.variable_dict, {'hidden_dims':[10, 10, 10]})
+                            len(self.variable_dict), self.x_one_hot_dim, self.variable_dict, {'hidden_dims':[10, 10]})
         
         self.is_trained = False
 
@@ -74,7 +74,7 @@ class SystemModel():
                 z_prior = torch.randn(z.shape)
 
                 #x_gen, x_gen_one_hot_dict = self.forward_generator(z, do_df=pd.DataFrame()) #TODO: conditioned
-                x_gen, x_gen_one_hot_dict = self.forward_generator(z + 0.1*z_prior, do_df=pd.DataFrame()) #TODO: conditioned
+                x_gen, x_gen_one_hot_dict = self.forward_generator(z, do_df=pd.DataFrame()) #TODO: conditioned
 
                 
                 z_dist_loss  = mmd_loss(z, z_prior)
@@ -253,10 +253,10 @@ if __name__ == '__main__':
 
     sm = SystemModel(r.variable_dict, cs)
 
-    options = {'batch_size':500,
+    options = {'batch_size':100,
                'num_epochs':50,
-               'forward_lr': 0.01,
-               'latent_lr':0.03,
+               'forward_lr': 0.001,
+               'latent_lr':0.003,
                'z_dist_scalar': 10.0,
                'plot':False
                 }

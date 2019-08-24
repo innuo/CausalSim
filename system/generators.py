@@ -66,6 +66,7 @@ class LatentGenerator(nn.Module):
             col = x[:,self.variable_dict[v]['id']]
             dim = self.variable_dict[v]['dim']
             col_tx = to_one_hot(col, dim) if self.variable_dict[v]['type'] == 'categorical' else col.unsqueeze(1)
+            #col_tx = col_tx + torch.randn(col_tx.shape) * 0.1
             x_cat = torch.cat((x_cat, col_tx.type(torch.FloatTensor)), 1) 
 
         z,_ = self.model(x_cat)
@@ -78,6 +79,7 @@ class MechanismNetwork(nn.Module):
         self.categorical_output = categorical_output
         lin_layers = []
         nonlin_layers = []
+        bn_layers = []
 
         for i, h in enumerate(hidden_dims):
             if i ==0:
@@ -86,14 +88,16 @@ class MechanismNetwork(nn.Module):
                 inp = hidden_dims[i-1]
             lin_layers.append(nn.Linear(inp, h))
             nonlin_layers.append(nn.Tanh())
+            bn_layers.append(nn.BatchNorm1d(h))
 
         self.lin_layers = nn.ModuleList(lin_layers)
         self.nonlin_layers = nn.ModuleList(nonlin_layers)
+        self.bn_layers = nn.ModuleList(bn_layers)
         self.output_layer = nn.Linear(hidden_dims[-1], output_dim)
 
     def forward(self, x):
         for i in range(self.num_hidden_layers):
-            x = self.nonlin_layers[i](self.lin_layers[i](x))
+            x = self.bn_layers[i](self.nonlin_layers[i](self.lin_layers[i](x)))
  
         pred = self.output_layer(x)   
         if self.categorical_output:
