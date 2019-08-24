@@ -38,9 +38,11 @@ class DataSet(Dataset):
 
         for v in self.variable_names:
             if self.variable_dict[v]['type'] == 'categorical':
-                self.df[v] = pd.to_numeric(self.df[v])
+                tmp = self.df[v]
                 non_missing_inds = self.df[v].isnull() == False
-                self.df[v][non_missing_inds] = self.variable_dict[v]['transform'](self.df[v][non_missing_inds])
+                self.df = self.df.drop(columns=v)
+                self.df.insert(self.variable_dict[v]['id'], v, np.nan)
+                self.df[v][non_missing_inds] = self.variable_dict[v]['transform'](tmp[non_missing_inds])
             else:
                 self.df[v] = self.variable_dict[v]['transform'](self.df[v].values.reshape([-1, 1]))
 
@@ -87,14 +89,16 @@ class DataSet(Dataset):
 
 
 if __name__ == '__main__':
-    #df = pd.read_csv("./data/5d.csv")
-    dd = pd.read_csv('data/toy-DSD.csv', 
+    df = pd.read_csv("./data/5d.csv")
+    """ dd = pd.read_csv('data/toy-DSD.csv', 
         usecols=['Product','Channel','Sales'])
     ds = pd.read_csv('data/toy-Survey.csv',
         usecols=['Product','Shopper','VolumeBought'])
     dp = pd.read_csv('data/toy-Product.csv',
         usecols = ['Product','Channel','Shopper'])
-
+    
     dataset = DataSet([dd, ds, dp])
+    """
+    dataset = DataSet([df])
     print(dataset.df.describe())
     print(dataset.df.dtypes)

@@ -73,12 +73,11 @@ class SystemModel():
                 z     = self.latent_generator(x)
                 z_prior = torch.randn(z.shape)
 
-                #x_gen, x_gen_one_hot_dict = self.forward_generator(z, do_df=pd.DataFrame()) #TODO: conditioned
-                x_gen, x_gen_one_hot_dict = self.forward_generator(z, do_df=pd.DataFrame()) #TODO: conditioned
+                ind = torch.rand (z.shape).argsort (dim = 0)
+                z_s = torch.zeros (z.shape).scatter_ (0, ind, z)
 
-                
-                z_dist_loss  = mmd_loss(z, z_prior)
-                #x_dist_loss  = mmd_loss(x, x_gen)
+                x_gen, x_gen_one_hot_dict = self.forward_generator(z, do_df=pd.DataFrame()) #TODO: conditioned
+                z_dist_loss  = mmd_loss(z, z_prior) + mmd_loss(z, z_s) 
  
                 total_loss = options['z_dist_scalar'] * z_dist_loss #+ options['x_dist_scalar'] * x_dist_loss
                             
@@ -97,7 +96,7 @@ class SystemModel():
                 forward_optim.step()
                 latent_optim.step()
 
-                if (num_batches * options['batch_size']) % 500  == 0:
+                if (num_batches * options['batch_size']) % 5000  == 0:
                     print ("Epoch = %2d, num_b = %5d, total_loss = %.5f, z_loss = %.5f"%
                            (epoch, num_batches, total_loss, z_dist_loss))
 
@@ -110,7 +109,7 @@ class SystemModel():
                 x[x_missing] = np.nan
 
                 x_gen = x_gen.detach().numpy()
-                x_gen_p, _ = self.forward_generator(z_prior)
+                x_gen_p, _ = self.forward_generator(z_s)
                 x_gen_p = x_gen_p.detach().numpy()
 
                 x_df = pd.DataFrame(x)
@@ -126,11 +125,29 @@ class SystemModel():
                 sb.pairplot(pd.DataFrame(x_df), hue = 'type', 
                                  markers=["o", "s", "+"], 
                                  diag_kind = "hist", dropna=True)
+
+
+                z_df = pd.DataFrame(z.detach().numpy())
+                z_s_df = pd.DataFrame(z_s.detach().numpy())
+
+                z_df['type'] = "Z"
+                z_s_df['type'] = 'Zs'
+                z_s_df = z_s_df.append(z_df, ignore_index=True)
+
+                #sb.pairplot(pd.DataFrame(z_s_df), hue = 'type', 
+                #                 markers=["o", "s"], 
+                #                 diag_kind = "hist", dropna=True)
                 
                 plt.show()
                 
 
         self.is_trained = True
+        data_loader = DataLoader(dataset, batch_size=dataset.__len__(),
+                             num_workers=1, shuffle=False)
+
+        all_x = next(iter(data_loader))
+
+        self.z_training = self.latent_generator(all_x)
         pass
     
     def fill(self, dataset):
@@ -152,7 +169,12 @@ class SystemModel():
 
 
     def sample(self, num_samples, do_df=pd.DataFrame()): #TODO: conditioned
-        z_gen = torch.randn(num_samples, self.num_latents)
+        ind = torch.rand (self.z_training.shape).argsort (dim = 0)
+        z_s = torch.zeros (self.z_training.shape).scatter_ (0, ind, self.z_training)
+
+        id = torch.randint(0, z_s.shape[0], (1, num_samples)).flatten()
+        z_gen = torch.index_select(z_s, 0, id)
+        
         x_gen, _ = self.forward_generator(z_gen)
         x_df = pd.DataFrame(x_gen)
         x_df = self.__make_data_frame(x_gen)
@@ -186,7 +208,7 @@ def mmd_loss(x, y, d = 1):
     dists_xy = square_dist_mat(x, y)
 
     dist = 0
-    for scale in [0.1, 1.0, 10.]:
+    for scale in [100.]:
         c = d * scale
         res  = c/(c + dists_x) + c/(c+ dists_y) - 2 * c/(c + dists_xy)
         dist += res.mean()
@@ -203,13 +225,13 @@ if __name__ == '__main__':
     ################
     #Example 1
     #df = pd.read_csv('data/5dmissing.csv')
-    #df = pd.read_csv('data/5d.csv')
-    #r = DataSet([df])
+    df = pd.read_csv('data/5d.csv')
+    r = DataSet([df])
     ###############
 
     ##############
     #Example 2
-    dd = pd.read_csv('data/toy-DSD.csv', 
+    """ dd = pd.read_csv('data/toy-DSD.csv', 
         usecols=['Product','Channel','Sales'])
 
     ds = pd.read_csv('data/toy-Survey.csv',
@@ -223,6 +245,7 @@ if __name__ == '__main__':
 
     r = DataSet([dd, ds, dp, dt])
     #############
+    """
 
     cs = CausalStructure(r.variable_names)
 
@@ -231,7 +254,7 @@ if __name__ == '__main__':
     plt.show()
 
     ### Replace structure EXAMPlE 2##
-    variable_names = list(r.df)
+    """variable_names = list(r.df)
     import networkx as nx
     dag = nx.empty_graph(len(variable_names), create_using=nx.DiGraph())
     dag = nx.relabel_nodes(dag, dict(zip(range(len(variable_names)), variable_names)))
@@ -250,15 +273,16 @@ if __name__ == '__main__':
     cs.plot()
     plt.show()
     ##################
+    """
 
     sm = SystemModel(r.variable_dict, cs)
 
-    options = {'batch_size':100,
-               'num_epochs':50,
-               'forward_lr': 0.001,
-               'latent_lr':0.003,
+    options = {'batch_size':500,
+               'num_epochs':20,
+               'forward_lr': 0.01,
+               'latent_lr':0.03,
                'z_dist_scalar': 10.0,
-               'plot':False
+               'plot':True
                 }
 
     sm.learn_generators(r, options)

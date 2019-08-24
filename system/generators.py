@@ -70,6 +70,11 @@ class LatentGenerator(nn.Module):
             x_cat = torch.cat((x_cat, col_tx.type(torch.FloatTensor)), 1) 
 
         z,_ = self.model(x_cat)
+        means = torch.mean(z, dim=0)
+        stds = torch.std(z, dim=0) 
+        z = z - means[None, :]
+        z = z/stds[None, :]
+
         return z
 
 class MechanismNetwork(nn.Module):
