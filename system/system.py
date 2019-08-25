@@ -37,9 +37,9 @@ class SystemModel():
         self.x_one_hot_dim = sum([self.variable_dict[k]['dim'] for k in self.variable_dict.keys()])
   
         self.forward_generator = ForwardGenerator(self.variable_dict, 
-                                    self.causal_graph, {'hidden_dims':[10, 10]})
+                                    self.causal_graph, {'hidden_dims':[10]})
         self.latent_generator = LatentGenerator(self.num_latents, 
-                            len(self.variable_dict), self.x_one_hot_dim, self.variable_dict, {'hidden_dims':[10, 10]})
+                            len(self.variable_dict), self.x_one_hot_dim, self.variable_dict, {'hidden_dims':[10]})
         
         self.is_trained = False
 
@@ -70,14 +70,17 @@ class SystemModel():
                 x_non_missing = x == x   
                 x_missing = x != x 
 
-                z     = self.latent_generator(x)
+                z_mean, z_std     = self.latent_generator(x)
+
+                z = torch.randn(z_mean.shape) * z_std + z_mean
+
                 z_prior = torch.randn(z.shape)
 
                 ind = torch.rand (z.shape).argsort (dim = 0)
                 z_s = torch.zeros (z.shape).scatter_ (0, ind, z)
 
                 x_gen, x_gen_one_hot_dict = self.forward_generator(z, do_df=pd.DataFrame()) #TODO: conditioned
-                z_dist_loss  = mmd_loss(z, z_prior) + mmd_loss(z, z_s) 
+                z_dist_loss  = mmd_loss(z, z_prior) #+ mmd_loss(z, z_s) 
  
                 total_loss = options['z_dist_scalar'] * z_dist_loss #+ options['x_dist_scalar'] * x_dist_loss
                             
@@ -85,7 +88,7 @@ class SystemModel():
                     variable_id = self.variable_dict[v]['id']
                     inds = torch.nonzero(x_non_missing[:,variable_id]).squeeze()
 
-                    if self.variable_dict[v]['type'] == 'category':
+                    if self.variable_dict[v]['type'] == 'categorical':
                         target = x[:,variable_id].type(torch.LongTensor)
                         total_loss += ce_loss(x_gen_one_hot_dict[v][inds], target[inds])
                     else:
@@ -109,7 +112,7 @@ class SystemModel():
                 x[x_missing] = np.nan
 
                 x_gen = x_gen.detach().numpy()
-                x_gen_p, _ = self.forward_generator(z_s)
+                x_gen_p, _ = self.forward_generator(z_prior)
                 x_gen_p = x_gen_p.detach().numpy()
 
                 x_df = pd.DataFrame(x)
@@ -128,15 +131,15 @@ class SystemModel():
 
 
                 z_df = pd.DataFrame(z.detach().numpy())
-                z_s_df = pd.DataFrame(z_s.detach().numpy())
+                z_s_df = pd.DataFrame(z_prior.detach().numpy())
 
                 z_df['type'] = "Z"
                 z_s_df['type'] = 'Zs'
                 z_s_df = z_s_df.append(z_df, ignore_index=True)
 
-                #sb.pairplot(pd.DataFrame(z_s_df), hue = 'type', 
-                #                 markers=["o", "s"], 
-                #                 diag_kind = "hist", dropna=True)
+                sb.pairplot(pd.DataFrame(z_s_df), hue = 'type', 
+                                 markers=["o", "s"], 
+                                 diag_kind = "hist", dropna=True)
                 
                 plt.show()
                 
@@ -159,8 +162,8 @@ class SystemModel():
         all_x = next(iter(data_loader))
 
         non_missing = all_x == all_x
-        z = self.latent_generator(all_x)
-        x_gen, _ = self.forward_generator(z)
+        z_mean,_ = self.latent_generator(all_x)
+        x_gen, _ = self.forward_generator(z_mean)
         x_gen[non_missing] = all_x[non_missing]
 
         x_df = self.__make_data_frame(x_gen)
@@ -169,13 +172,9 @@ class SystemModel():
 
 
     def sample(self, num_samples, do_df=pd.DataFrame()): #TODO: conditioned
-        ind = torch.rand (self.z_training.shape).argsort (dim = 0)
-        z_s = torch.zeros (self.z_training.shape).scatter_ (0, ind, self.z_training)
-
-        id = torch.randint(0, z_s.shape[0], (1, num_samples)).flatten()
-        z_gen = torch.index_select(z_s, 0, id)
-        
-        x_gen, _ = self.forward_generator(z_gen)
+     
+        z_p = torch.randn((num_samples, self.num_latents))
+        x_gen, _ = self.forward_generator(z_p)
         x_df = pd.DataFrame(x_gen)
         x_df = self.__make_data_frame(x_gen)
         return x_df
@@ -207,13 +206,21 @@ def mmd_loss(x, y, d = 1):
     dists_y = square_dist_mat(y, y)
     dists_xy = square_dist_mat(x, y)
 
-    dist = 0
-    for scale in [100.]:
+    nx = x.shape[0]
+    ny = y.shape[0]
+
+    res = 0
+    for scale in [10, 100]:
         c = d * scale
-        res  = c/(c + dists_x) + c/(c+ dists_y) - 2 * c/(c + dists_xy)
-        dist += res.mean()
+        res_x  = c/(c + dists_x) 
+        res  += (res_x.sum() - torch.diag(res_x).sum()) * 1.0/(nx * (nx-1))
+        res_y  = c/(c + dists_y) 
+        res  += (res_y.sum() - torch.diag(res_y).sum()) * 1.0/(ny * (ny-1))
+        
+        res_xy  =  c/(c + dists_xy)
+        res -=  2 * res_xy.mean()
     
-    return dist
+    return res
 
         
  
@@ -229,9 +236,11 @@ if __name__ == '__main__':
     r = DataSet([df])
     ###############
 
+    
     ##############
     #Example 2
-    """ dd = pd.read_csv('data/toy-DSD.csv', 
+    """
+    dd = pd.read_csv('data/toy-DSD.csv', 
         usecols=['Product','Channel','Sales'])
 
     ds = pd.read_csv('data/toy-Survey.csv',
@@ -253,8 +262,9 @@ if __name__ == '__main__':
     cs.plot()
     plt.show()
 
+    """
     ### Replace structure EXAMPlE 2##
-    """variable_names = list(r.df)
+    variable_names = list(r.df)
     import networkx as nx
     dag = nx.empty_graph(len(variable_names), create_using=nx.DiGraph())
     dag = nx.relabel_nodes(dag, dict(zip(range(len(variable_names)), variable_names)))
@@ -281,7 +291,7 @@ if __name__ == '__main__':
                'num_epochs':20,
                'forward_lr': 0.01,
                'latent_lr':0.03,
-               'z_dist_scalar': 10.0,
+               'z_dist_scalar': 100.0,
                'plot':True
                 }
 
