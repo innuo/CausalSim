@@ -54,7 +54,8 @@ class LatentGenerator(nn.Module):
         super(LatentGenerator, self).__init__()
         self.x_dim = x_dim
         self.x_one_hot_dim = x_one_hot_dim
-        self.model = MechanismNetwork(x_dim + x_one_hot_dim, num_latents, options['hidden_dims'])
+        self.mean_model = MechanismNetwork(x_dim + x_one_hot_dim, num_latents, options['hidden_dims'])
+        self.logstd_model = MechanismNetwork(x_dim + x_one_hot_dim, num_latents, options['hidden_dims'])
         self.variable_dict = variable_dict
 
     def forward(self, x):
@@ -69,8 +70,15 @@ class LatentGenerator(nn.Module):
             #col_tx = col_tx + torch.randn(col_tx.shape) * 0.1
             x_cat = torch.cat((x_cat, col_tx.type(torch.FloatTensor)), 1) 
 
-        z,_ = self.model(x_cat)
-        return z
+        z_mean,_ = self.mean_model(x_cat)
+        z_std  = torch.exp(self.logstd_model(x_cat)[0])
+       
+        #means = torch.mean(z, dim=0)
+        #stds = torch.std(z, dim=0) 
+        #z = z - means[None, :]
+        #z = z/stds[None, :]
+
+        return z_mean, z_std
 
 class MechanismNetwork(nn.Module):
     def __init__(self, input_dim, output_dim, hidden_dims, categorical_output=False):
