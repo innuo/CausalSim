@@ -37,9 +37,9 @@ class SystemModel():
         self.x_one_hot_dim = sum([self.variable_dict[k]['dim'] for k in self.variable_dict.keys()])
   
         self.forward_generator = ForwardGenerator(self.variable_dict, 
-                                    self.causal_graph, {'hidden_dims':[10]})
+                                    self.causal_graph, {'hidden_dims':[20, 20]})
         self.latent_generator = LatentGenerator(self.num_latents, 
-                            len(self.variable_dict), self.x_one_hot_dim, self.variable_dict, {'hidden_dims':[10]})
+                            len(self.variable_dict), self.x_one_hot_dim, self.variable_dict, {'hidden_dims':[20, 20]})
         
         self.is_trained = False
 
@@ -52,8 +52,8 @@ class SystemModel():
         forward_optim = optim.Adam(self.forward_generator.parameters(), lr=options['forward_lr'])
         latent_optim  = optim.Adam(self.latent_generator.parameters(), lr=options['latent_lr'])
 
-        forward_scheduler = StepLR(forward_optim, step_size=5, gamma=0.8)
-        latent_scheduler  = StepLR(latent_optim, step_size=5, gamma=0.8)
+        forward_scheduler = StepLR(forward_optim, step_size=200, gamma=0.5)
+        latent_scheduler  = StepLR(latent_optim, step_size=200, gamma=0.5)
 
         mse_loss = nn.MSELoss()
         ce_loss  = nn.CrossEntropyLoss()
@@ -72,7 +72,8 @@ class SystemModel():
 
                 z_mean, z_std     = self.latent_generator(x)
 
-                z = torch.randn(z_mean.shape) * z_std + z_mean
+                #z = torch.randn(z_mean.shape) * z_std + z_mean
+                z = z_mean
 
                 z_prior = torch.randn(z.shape)
 
@@ -83,34 +84,43 @@ class SystemModel():
                 z_dist_loss  = mmd_loss(z, z_prior) #+ mmd_loss(z, z_s) 
  
                 total_loss = options['z_dist_scalar'] * z_dist_loss #+ options['x_dist_scalar'] * x_dist_loss
-                            
+
+                x_loss = torch.tensor(0.0)
                 for v in self.variable_dict.keys():
                     variable_id = self.variable_dict[v]['id']
                     inds = torch.nonzero(x_non_missing[:,variable_id]).squeeze()
 
                     if self.variable_dict[v]['type'] == 'categorical':
                         target = x[:,variable_id].type(torch.LongTensor)
-                        total_loss += ce_loss(x_gen_one_hot_dict[v][inds], target[inds])
+                        x_loss += ce_loss(x_gen_one_hot_dict[v][inds], target[inds])
                     else:
                         target = x[:,variable_id].type(torch.FloatTensor)
-                        total_loss += mse_loss(x_gen[inds, variable_id], target[inds])
+                        x_loss += mse_loss(x_gen[inds, variable_id], target[inds])
 
+                total_loss += x_loss
                 total_loss.backward()
                 forward_optim.step()
                 latent_optim.step()
 
                 if (num_batches * options['batch_size']) % 5000  == 0:
-                    print ("Epoch = %2d, num_b = %5d, total_loss = %.5f, z_loss = %.5f"%
-                           (epoch, num_batches, total_loss, z_dist_loss))
+                    print ("Epoch = %2d, num_b = %5d, total_loss = %.5f, x_loss = %.5f, z_loss = %.5f"%
+                           (epoch, num_batches, total_loss, x_loss, z_dist_loss))
 
             forward_scheduler.step()
             latent_scheduler.step()
 
-            if epoch % 2 == 1 and options['plot']:
-               
+            if epoch % 200 == 1 and options['plot']:
+                tmp = DataLoader(dataset, batch_size=500, shuffle=True)
+                x = iter(tmp).next()
+                z, _ = self.latent_generator(x)
+
                 x = x.detach().numpy()
                 x[x_missing] = np.nan
 
+
+                z_prior = torch.randn(z.shape)
+
+                x_gen, x_gen_one_hot_dict = self.forward_generator(z, do_df=pd.DataFrame())
                 x_gen = x_gen.detach().numpy()
                 x_gen_p, _ = self.forward_generator(z_prior)
                 x_gen_p = x_gen_p.detach().numpy()
@@ -126,7 +136,7 @@ class SystemModel():
                 x_df = x_df.append(x_gen_p_df, ignore_index=True)
 
                 sb.pairplot(pd.DataFrame(x_df), hue = 'type', 
-                                 markers=["o", "s", "+"], 
+                                 markers=["o", "+", "s"],
                                  diag_kind = "hist", dropna=True)
 
 
@@ -210,7 +220,7 @@ def mmd_loss(x, y, d = 1):
     ny = y.shape[0]
 
     res = 0
-    for scale in [10, 100]:
+    for scale in [0.1, 1.0, 10, 100]:
         c = d * scale
         res_x  = c/(c + dists_x) 
         res  += (res_x.sum() - torch.diag(res_x).sum()) * 1.0/(nx * (nx-1))
@@ -222,23 +232,23 @@ def mmd_loss(x, y, d = 1):
     
     return res
 
-        
- 
-if __name__ == '__main__':
-    from datahandler import DataSet
-    from structure import CausalStructure
+
+from datahandler import DataSet
+from structure import CausalStructure
+import networkx as nx
+def old_main():
+
     import os
 
     ################
-    #Example 1
-    #df = pd.read_csv('data/5dmissing.csv')
+    # Example 1
+    # df = pd.read_csv('data/5dmissing.csv')
     df = pd.read_csv('data/5d.csv')
     r = DataSet([df])
     ###############
 
-    
     ##############
-    #Example 2
+    # Example 2
     """
     dd = pd.read_csv('data/toy-DSD.csv', 
         usecols=['Product','Channel','Sales'])
@@ -248,7 +258,7 @@ if __name__ == '__main__':
 
     dp = pd.read_csv('data/toy-Product.csv',
         usecols = ['Product','Channel','Shopper'])
-    
+
     dt = pd.read_csv('data/toy-TLOG.csv',
         usecols = ['Product','Price','VolumeBought','Sales'])
 
@@ -265,10 +275,10 @@ if __name__ == '__main__':
     """
     ### Replace structure EXAMPlE 2##
     variable_names = list(r.df)
-    import networkx as nx
+    
     dag = nx.empty_graph(len(variable_names), create_using=nx.DiGraph())
     dag = nx.relabel_nodes(dag, dict(zip(range(len(variable_names)), variable_names)))
-    
+
     edges = [('Product', 'Price'), 
             ('Channel', 'Price'),
             ('Product', 'VolumeBought'),
@@ -287,18 +297,48 @@ if __name__ == '__main__':
 
     sm = SystemModel(r.variable_dict, cs)
 
-    options = {'batch_size':500,
-               'num_epochs':20,
+    options = {'batch_size': 500,
+               'num_epochs': 20,
                'forward_lr': 0.01,
-               'latent_lr':0.03,
+               'latent_lr': 0.03,
                'z_dist_scalar': 100.0,
-               'plot':True
-                }
+               'plot': False
+               }
 
     sm.learn_generators(r, options)
 
     filled_df = sm.fill(r)
-    filled_df.to_csv ('data/toy-result.csv', index = None, header=True)
+    filled_df.to_csv('data/toy-result.csv', index=None, header=True)
 
     sample_df = sm.sample(1000)
     sample_df.to_csv('data/toy-simulated.csv', index=None, header=True)
+
+def abc_test():
+    df = pd.read_csv('data/abc.csv')
+    r = DataSet([df])
+
+    edges = [('A', 'B'),
+             ('A', 'C'),
+             ('B', 'C')
+             ]
+    dag = nx.empty_graph(3, create_using=nx.DiGraph())
+    dag = nx.relabel_nodes(dag, dict(zip(range(3), ['A', 'B' , 'C'])))
+    dag.add_edges_from(edges)
+    cs = CausalStructure(r.variable_names, dag=dag)
+    cs.plot()
+    plt.show()
+
+    sm = SystemModel(r.variable_dict, cs)
+
+    options = {'batch_size': 50,
+               'num_epochs': 1010,
+               'forward_lr': 0.01,
+               'latent_lr': 0.01,
+               'z_dist_scalar': 100.0,
+               'plot': True
+               }
+
+    sm.learn_generators(r, options)
+
+if __name__ == '__main__':
+    abc_test()

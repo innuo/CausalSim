@@ -49,7 +49,30 @@ def to_one_hot(y, n_dims):
     return Variable(y_one_hot) if isinstance(y, Variable) else y_one_hot
 
       
-class LatentGenerator(nn.Module):
+class LatentGenerator(nn.Module): #For testing with ABC dataset
+    def __init__(self, num_latents, x_dim, x_one_hot_dim, variable_dict, options):
+        super(LatentGenerator, self).__init__()
+
+        mlist = []
+        mlist.append(MechanismNetwork(1, 1, options['hidden_dims'])) #A
+        mlist.append(MechanismNetwork(2, 1, options['hidden_dims'])) #B
+        mlist.append(MechanismNetwork(3, 1, options['hidden_dims'])) #C
+
+        self.module_list = nn.ModuleList(mlist)
+
+    def forward(self, x):
+
+        zA = self.module_list[0](x[:,0:1])[0]
+        zB = self.module_list[1](x[:,0:2])[0]
+        zC = self.module_list[2](x)[0]
+
+        z_mean = torch.cat((zA, zB, zC), 1)
+        z_std  = torch.zeros(z_mean.shape)
+
+        return z_mean, z_std
+
+
+class LatentGeneratorActual(nn.Module):
     def __init__(self, num_latents, x_dim, x_one_hot_dim, variable_dict, options):
         super(LatentGenerator, self).__init__()
         self.x_dim = x_dim
@@ -62,23 +85,24 @@ class LatentGenerator(nn.Module):
         x_missing = x != x
         x[x_missing] = 0
         x_cat = x_missing.type(torch.FloatTensor)
-        
+
         for v in self.variable_dict.keys():
-            col = x[:,self.variable_dict[v]['id']]
+            col = x[:, self.variable_dict[v]['id']]
             dim = self.variable_dict[v]['dim']
             col_tx = to_one_hot(col, dim) if self.variable_dict[v]['type'] == 'categorical' else col.unsqueeze(1)
-            #col_tx = col_tx + torch.randn(col_tx.shape) * 0.1
-            x_cat = torch.cat((x_cat, col_tx.type(torch.FloatTensor)), 1) 
+            # col_tx = col_tx + torch.randn(col_tx.shape) * 0.1
+            x_cat = torch.cat((x_cat, col_tx.type(torch.FloatTensor)), 1)
 
-        z_mean,_ = self.mean_model(x_cat)
-        z_std  = torch.exp(self.logstd_model(x_cat)[0])
-       
-        #means = torch.mean(z, dim=0)
-        #stds = torch.std(z, dim=0) 
-        #z = z - means[None, :]
-        #z = z/stds[None, :]
+        z_mean, _ = self.mean_model(x_cat)
+        z_std = torch.exp(self.logstd_model(x_cat)[0])
+
+        # means = torch.mean(z, dim=0)
+        # stds = torch.std(z, dim=0)
+        # z = z - means[None, :]
+        # z = z/stds[None, :]
 
         return z_mean, z_std
+
 
 class MechanismNetwork(nn.Module):
     def __init__(self, input_dim, output_dim, hidden_dims, categorical_output=False):
@@ -95,7 +119,7 @@ class MechanismNetwork(nn.Module):
             else:
                 inp = hidden_dims[i-1]
             lin_layers.append(nn.Linear(inp, h))
-            nonlin_layers.append(nn.Tanh())
+            nonlin_layers.append(nn.LeakyReLU())
             bn_layers.append(nn.BatchNorm1d(h))
 
         self.lin_layers = nn.ModuleList(lin_layers)

@@ -32,6 +32,7 @@ class CausalStructure:
     # TODO: improve structure learning
     def learn_structure(self, dataset):
         gs = cdt.causality.graph.bnlearn.GS()
+        cam = cdt.causality.pairwise.IGCI()
         
         for d in dataset.raw_datasets:
             d_copy = d.copy()
@@ -40,7 +41,8 @@ class CausalStructure:
                 if d_copy[v].dtype.name == 'category':
                     d_copy[v] = d[v].apply(lambda x: 'v%s'%x)
                 
-            dataset_dag = gs.create_graph_from_data(d_copy)
+            #dataset_dag = gs.create_graph_from_data(d_copy)
+            dataset_dag = cam.predict(d_copy)
         self.update_structure(dataset_dag, 'union', 'self')
 
     def update_structure(self, dag, merge_type='add', priority='self'):
